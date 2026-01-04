@@ -1,4 +1,5 @@
 use anyhow::Result;
+use fslock::LockFile;
 use std::{collections::HashMap, fs::File, io::Read, path::PathBuf};
 
 use pruner::{
@@ -40,6 +41,9 @@ pub fn formatters() -> FormatterSpecs {
 
 #[allow(dead_code)]
 pub fn grammars() -> Result<Grammars> {
+  let mut file = LockFile::open("tests/fixtures/.build.lock")?;
+  file.lock()?;
+
   grammar::load_grammars(
     &["tests/fixtures/grammars".into()],
     &["tests/fixtures/queries".into()],

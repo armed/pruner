@@ -3,7 +3,7 @@ default:
 
 prepare:
     #!/bin/sh
-    set -eo pipefail
+    set -e pipefail
 
     rm -rf tests/fixtures/grammars || true
     mkdir -p tests/fixtures/grammars

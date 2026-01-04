@@ -1,0 +1,45 @@
+name: Test
+on:
+  push:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Install just
+        uses: extractions/setup-just@v1
+
+      - name: Install clojure tools
+        uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          cljfmt: 0.15.6
+
+      - name: Install pg_formatter
+        run: |
+          version=5.9
+          wget https://github.com/darold/pgFormatter/archive/refs/tags/v${version}.tar.gz
+          tar xzf v${version}.tar.gz
+          cd pgFormatter-${version}/
+          perl Makefile.PL
+          make && sudo make install
+          cd ../ && rm -rf v${version}.tar.gz && rm -rf pgFormatter-${version}
+
+      - name: Install prettier
+        run: |
+          npm i -g prettier
+
+      - name: Prepare
+        run: |
+          just prepare
+      
+      - name: Test
+        run: |
+          just test

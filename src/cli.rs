@@ -12,7 +12,7 @@ pub struct GlobalOpts {
 }
 
 #[derive(clap::Parser, Debug)]
-#[command(name = "prune", version = env!("VERSION"))]
+#[command(name = "pruner", version = env!("VERSION"))]
 pub struct Cli {
   #[clap(flatten)]
   pub global_opts: GlobalOpts,
