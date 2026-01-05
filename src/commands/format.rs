@@ -19,24 +19,47 @@ use crate::{
 
 #[derive(clap::Args, Debug)]
 pub struct FormatArgs {
+  /// The language name of the root document. Regions containing injected languages will be
+  /// dynamically discovered from queries.
   #[arg(long)]
   lang: String,
 
-  #[arg(long, default_value_t = 80)]
+  /// The desired print-width of the document after which text should wrap. This value specifies the
+  /// starting point and will be dynamically adjusted for injected language regions.
+  #[arg(long, short('w'), default_value_t = 80)]
   print_width: u32,
 
-  #[arg(long, default_value_t = false, action = ArgAction::SetTrue)]
-  injected_regions_only: bool,
+  /// Specifying this will skip formatting the document root. This means only regions within the
+  /// document containing language injections will be formatted. If you only want to use pruner to
+  /// format injected regions, then this is the option to use.
+  ///
+  /// This can be especially useful in an editor context where you might want to use your LSP to
+  /// format your document root, and then run pruner on the result to format injected regions.
+  #[arg(long, short('R'), default_value_t = false, action = ArgAction::SetTrue)]
+  skip_root: bool,
 
-  #[arg(long)]
+  /// The current working directory. Only used when formatting files.
+  #[arg(long, short('d'))]
   dir: Option<PathBuf>,
 
-  #[arg(long)]
+  /// Specify a file exclusion pattern as a glob. Any files matching this pattern will not be
+  /// formatted. Can be specified multiple times.
+  #[arg(long, short('e'))]
   exclude: Option<Vec<String>>,
 
-  #[arg(long, default_value_t = false, action = ArgAction::SetTrue)]
+  /// Setting this to true will result in no files being modified on disk. If any files are
+  /// considered 'dirty' meaning, meaning they are not correctly formatted, then pruner will exit
+  /// with a non-0 exit code.
+  #[arg(long, short('c'), default_value_t = false, action = ArgAction::SetTrue)]
   check: bool,
 
+  /// A file pattern, in glob format, describing files on disk to be formatted.
+  ///
+  /// If this is specified then pruner will recursively format all files in the cwd (or --dir if
+  /// set) that match this pattern.
+  ///
+  /// If this is _not_ set then pruner will expect source code to be provided via stdin and the
+  /// formatted result will be outputted over stdout.
   include_glob: Option<String>,
 }
 
@@ -62,7 +85,7 @@ fn format_stdin(args: &FormatArgs, context: &FormatContext) -> Result<()> {
       printwidth: args.print_width,
       language: &args.lang,
     },
-    args.injected_regions_only,
+    args.skip_root,
     context,
   )?;
   log::debug!(
@@ -87,7 +110,7 @@ fn format_files(args: &FormatArgs, context: &FormatContext) -> Result<()> {
       printwidth: args.print_width,
       language: &args.lang,
     },
-    args.injected_regions_only,
+    args.skip_root,
     context,
   )?;
 

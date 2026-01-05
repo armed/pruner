@@ -23,6 +23,6 @@ pub struct Cli {
 
 #[derive(clap::Subcommand, Debug)]
 pub enum Commands {
-  /// Format a file
+  /// Format one or more files
   Format(FormatArgs),
 }
