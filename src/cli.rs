@@ -7,7 +7,7 @@ pub struct GlobalOpts {
   #[clap(long, global = true)]
   pub log_level: Option<log::LevelFilter>,
 
-  #[arg(long)]
+  #[arg(long, global = true)]
   pub config: Option<PathBuf>,
 }
 
