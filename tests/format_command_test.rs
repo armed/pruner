@@ -226,3 +226,33 @@ fn offset_dependent_printwidth() -> Result<()> {
 
   Ok(())
 }
+
+#[test]
+fn format_fixes_indent() -> Result<()> {
+  let grammars = common::grammars()?;
+  let formatters = common::formatters();
+  let languages = common::languages();
+
+  let source = common::load_file("format_fixes_indent/input.clj");
+
+  let result = format::format(
+    source.as_bytes(),
+    &FormatOpts {
+      printwidth: 80,
+      language: "clojure",
+    },
+    false,
+    &FormatContext {
+      grammars: &grammars,
+      languages: &languages,
+      formatters: &formatters,
+    },
+  )
+  .unwrap();
+
+  let expected = common::load_file("format_fixes_indent/output.clj");
+
+  assert_eq!(String::from_utf8(result).unwrap(), expected);
+
+  Ok(())
+}

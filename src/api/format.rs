@@ -58,7 +58,7 @@ pub fn format(
         text::unescape_text(&source_str, &escape_chars)
       };
 
-      let mut indent = text::column_for_byte(source, region.range.start_byte);
+      let mut indent = text::column_for_byte(&formatted_result, region.range.start_byte);
       let mut normalized_source = unescaped_source_str;
       if indent > 0 {
         normalized_source = text::strip_leading_indent(&normalized_source, indent);
