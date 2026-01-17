@@ -128,44 +128,28 @@ fn format_files(args: &FormatArgs, context: &FormatContext) -> Result<()> {
 
 pub fn handle(args: FormatArgs, global: GlobalOpts) -> Result<()> {
   let cwd = std::env::current_dir()?;
-  let xdg_dirs = xdg::BaseDirectories::with_prefix("pruner");
-  let pruner_config = config::load(global.config)?;
+  let config = config::load(global.config)?;
 
-  let wasm_formatter =
-    WasmFormatter::from_config(&pruner_config, xdg_dirs.place_data_file("cache")?)?;
+  let wasm_formatter = WasmFormatter::from_config(&config)?;
 
-  let repos_dir = cwd.join(
-    pruner_config
-      .grammar_download_dir
-      .clone()
-      .unwrap_or(xdg_dirs.place_data_file("grammars")?),
-  );
-  let lib_dir = cwd.join(
-    pruner_config
-      .grammar_build_dir
-      .clone()
-      .unwrap_or(xdg_dirs.place_data_file("build")?),
-  );
+  let repos_dir = cwd.join(&config.grammar_download_dir);
+  let lib_dir = cwd.join(&config.grammar_build_dir);
 
   fs::create_dir_all(&repos_dir)?;
   fs::create_dir_all(&lib_dir)?;
 
-  let grammars = pruner_config.grammars.clone().unwrap_or_default();
-
   let start = Instant::now();
-  api::git::clone_all_grammars(&repos_dir, &grammars)?;
+  api::git::clone_all_grammars(&repos_dir, &config.grammars)?;
   log::debug!(
     "Grammar clone duration: {:?}",
     Instant::now().duration_since(start)
   );
 
-  let mut grammar_paths = pruner_config.grammar_paths.clone().unwrap_or_default();
+  let mut grammar_paths = config.grammar_paths.clone();
   grammar_paths.push(repos_dir);
 
-  let query_paths = pruner_config.query_paths.clone().unwrap_or_default();
-
   let start = Instant::now();
-  let grammars = api::grammar::load_grammars(&grammar_paths, &query_paths, Some(lib_dir))
+  let grammars = api::grammar::load_grammars(&grammar_paths, &config.query_paths, Some(lib_dir))
     .context("Failed to load grammars")?;
   log::debug!(
     "Grammar load duration: {:?}",
@@ -174,8 +158,8 @@ pub fn handle(args: FormatArgs, global: GlobalOpts) -> Result<()> {
 
   let context = FormatContext {
     grammars: &grammars,
-    languages: &pruner_config.languages.unwrap_or_default(),
-    formatters: &pruner_config.formatters.unwrap_or_default(),
+    languages: &config.languages,
+    formatters: &config.formatters,
     wasm_formatter: &wasm_formatter,
   };
 

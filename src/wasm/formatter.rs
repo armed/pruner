@@ -3,7 +3,7 @@ use std::{path::PathBuf, time::Instant};
 use wasmtime::{Engine, component::Linker};
 use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxView, WasiView};
 
-use crate::{api::format::FormatOpts, config::PrunerConfig};
+use crate::{api::format::FormatOpts, config::Config};
 
 use super::{
   bindings::{Pruner, exports::pruner::pruner::formatter},
@@ -56,10 +56,10 @@ impl WasmFormatter {
     })
   }
 
-  pub fn from_config(config: &PrunerConfig, cache_dir: PathBuf) -> Result<Self> {
-    let mut formatter = Self::new(cache_dir)?;
-    for (name, spec) in config.wasm_formatters.clone().unwrap_or_default() {
-      formatter.registry.load_component(&name, spec.url())?;
+  pub fn from_config(config: &Config) -> Result<Self> {
+    let mut formatter = Self::new(config.cache_dir.clone())?;
+    for (name, spec) in &config.wasm_formatters {
+      formatter.registry.load_component(name, spec.url())?;
     }
     Ok(formatter)
   }

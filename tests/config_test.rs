@@ -1,4 +1,4 @@
-use pruner::config::PrunerConfig;
+use pruner::config::ConfigFile;
 use std::{
   collections::HashMap,
   fs::{self, File},
@@ -34,7 +34,7 @@ grammar_build_dir = "build"
   )
   .expect("should write config file");
 
-  let config = PrunerConfig::from_file(&config_path).expect("should load config");
+  let config = ConfigFile::from_file(&config_path).expect("should load config");
 
   let query_paths = config.query_paths.expect("query_paths should be set");
   let grammar_paths = config.grammar_paths.expect("grammar_paths should be set");
@@ -60,7 +60,7 @@ grammar_build_dir = "build"
 
 #[test]
 fn merges_configs_with_overlay_priority() {
-  let base = PrunerConfig {
+  let base = ConfigFile {
     query_paths: Some(vec![PathBuf::from("base_query")]),
     grammar_paths: Some(vec![PathBuf::from("base_grammar")]),
     grammar_download_dir: Some(PathBuf::from("base_downloads")),
@@ -93,7 +93,7 @@ fn merges_configs_with_overlay_priority() {
     wasm_formatters: None,
   };
 
-  let overlay = PrunerConfig {
+  let overlay = ConfigFile {
     query_paths: Some(vec![PathBuf::from("overlay_query")]),
     grammar_paths: Some(vec![PathBuf::from("overlay_grammar")]),
     grammar_download_dir: Some(PathBuf::from("overlay_downloads")),
@@ -126,7 +126,7 @@ fn merges_configs_with_overlay_priority() {
     wasm_formatters: None,
   };
 
-  let merged = PrunerConfig::merge(&base, &overlay);
+  let merged = ConfigFile::merge(&base, &overlay);
 
   assert_eq!(
     merged.query_paths.unwrap(),

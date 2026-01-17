@@ -63,8 +63,10 @@ pub type GrammarSpecs = HashMap<String, GrammarSpec>;
 pub type LanguageFormatSpec = Vec<String>;
 pub type LanguageFormatters = HashMap<String, LanguageFormatSpec>;
 
-#[derive(serde::Deserialize, Debug, Default)]
-pub struct PrunerConfig {
+/// Represents the on-disk configuration format. All fields are optional
+/// to allow partial configs that get merged together.
+#[derive(serde::Deserialize, Debug, Default, Clone)]
+pub struct ConfigFile {
   pub query_paths: Option<Vec<PathBuf>>,
   pub grammar_paths: Option<Vec<PathBuf>>,
 
@@ -75,6 +77,23 @@ pub struct PrunerConfig {
   pub languages: Option<LanguageFormatters>,
   pub formatters: Option<FormatterSpecs>,
   pub wasm_formatters: Option<WasmComponentSpecs>,
+}
+
+/// The fully resolved configuration with all defaults applied.
+/// Used by the rest of the application.
+#[derive(Debug, Clone)]
+pub struct Config {
+  pub query_paths: Vec<PathBuf>,
+  pub grammar_paths: Vec<PathBuf>,
+
+  pub grammar_download_dir: PathBuf,
+  pub grammar_build_dir: PathBuf,
+  pub cache_dir: PathBuf,
+
+  pub grammars: GrammarSpecs,
+  pub languages: LanguageFormatters,
+  pub formatters: FormatterSpecs,
+  pub wasm_formatters: WasmComponentSpecs,
 }
 
 fn absolutize_vec(paths: Vec<PathBuf>, base_dir: &Path) -> Vec<PathBuf> {
@@ -119,15 +138,15 @@ fn merge_maps<K: Eq + Hash + Clone, V: Clone>(
   }
 }
 
-impl PrunerConfig {
+impl ConfigFile {
   pub fn from_file(path: &Path) -> Result<Self> {
     let content = std::fs::read_to_string(path)?;
-    let config: PrunerConfig = toml::from_str(&content)?;
+    let config: ConfigFile = toml::from_str(&content)?;
     Ok(config.absolutize_paths(path.parent()))
   }
 
-  pub fn merge(base: &PrunerConfig, overlay: &PrunerConfig) -> PrunerConfig {
-    PrunerConfig {
+  pub fn merge(base: &ConfigFile, overlay: &ConfigFile) -> ConfigFile {
+    ConfigFile {
       query_paths: merge_vecs(&base.query_paths, &overlay.query_paths),
       grammar_paths: merge_vecs(&base.grammar_paths, &overlay.grammar_paths),
       grammar_download_dir: overlay
@@ -177,27 +196,48 @@ fn find_local_config(start_dir: &Path) -> Option<PathBuf> {
   None
 }
 
-pub fn load(config_path: Option<PathBuf>) -> Result<PrunerConfig> {
+fn load_config_file(config_path: Option<PathBuf>) -> Result<ConfigFile> {
   let cwd = std::env::current_dir()?;
 
   if let Some(path) = config_path {
-    return PrunerConfig::from_file(&cwd.join(path));
+    return ConfigFile::from_file(&cwd.join(path));
   }
 
   let xdg_dirs = xdg::BaseDirectories::with_prefix("pruner");
   let config_path = xdg_dirs.find_config_file("config.toml");
   let global_config = match config_path.as_deref() {
-    Some(config_path) => PrunerConfig::from_file(config_path)
+    Some(config_path) => ConfigFile::from_file(config_path)
       .with_context(|| format!("Failed to load config {:?}", config_path))?,
-    None => PrunerConfig::default(),
+    None => ConfigFile::default(),
   };
 
   let local_config_path = find_local_config(&cwd);
   let local_config = match local_config_path.as_deref() {
-    Some(local_config_path) => PrunerConfig::from_file(local_config_path)
+    Some(local_config_path) => ConfigFile::from_file(local_config_path)
       .with_context(|| format!("Failed to load config {:?}", local_config_path))?,
-    None => PrunerConfig::default(),
+    None => ConfigFile::default(),
   };
 
-  Ok(PrunerConfig::merge(&global_config, &local_config))
+  Ok(ConfigFile::merge(&global_config, &local_config))
+}
+
+pub fn load(config_path: Option<PathBuf>) -> Result<Config> {
+  let xdg_dirs = xdg::BaseDirectories::with_prefix("pruner");
+  let config_file = load_config_file(config_path)?;
+
+  Ok(Config {
+    query_paths: config_file.query_paths.unwrap_or_default(),
+    grammar_paths: config_file.grammar_paths.unwrap_or_default(),
+    grammar_download_dir: config_file
+      .grammar_download_dir
+      .unwrap_or(xdg_dirs.place_data_file("grammars")?),
+    grammar_build_dir: config_file
+      .grammar_build_dir
+      .unwrap_or(xdg_dirs.place_data_file("build")?),
+    cache_dir: xdg_dirs.place_data_file("cache")?,
+    grammars: config_file.grammars.unwrap_or_default(),
+    languages: config_file.languages.unwrap_or_default(),
+    formatters: config_file.formatters.unwrap_or_default(),
+    wasm_formatters: config_file.wasm_formatters.unwrap_or_default(),
+  })
 }
