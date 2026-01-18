@@ -9,6 +9,11 @@ pub struct GlobalOpts {
 
   #[arg(long, global = true)]
   pub config: Option<PathBuf>,
+
+  /// Use named profiles from the config file. Can be specified multiple times;
+  /// profiles are applied in order.
+  #[arg(long, global = true)]
+  pub profile: Vec<String>,
 }
 
 #[derive(clap::Parser, Debug)]

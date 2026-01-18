@@ -7,7 +7,7 @@ use crate::{
     format::{self, FormatContext, FormatOpts},
   },
   cli::GlobalOpts,
-  config,
+  config::{self, LoadOpts},
   wasm::formatter::WasmFormatter,
 };
 
@@ -128,7 +128,10 @@ fn format_files(args: &FormatArgs, context: &FormatContext) -> Result<()> {
 
 pub fn handle(args: FormatArgs, global: GlobalOpts) -> Result<()> {
   let cwd = std::env::current_dir()?;
-  let config = config::load(global.config)?;
+  let config = config::load(LoadOpts {
+    config_path: global.config,
+    profiles: global.profile,
+  })?;
 
   let wasm_formatter = WasmFormatter::from_config(&config)?;
 

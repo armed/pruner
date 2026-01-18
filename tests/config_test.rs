@@ -1,4 +1,4 @@
-use pruner::config::ConfigFile;
+use pruner::config::{ConfigFile, ProfileConfig};
 use std::{
   collections::HashMap,
   fs::{self, File},
@@ -91,6 +91,7 @@ fn merges_configs_with_overlay_priority() {
       ),
     ])),
     wasm_formatters: None,
+    profiles: None,
   };
 
   let overlay = ConfigFile {
@@ -124,6 +125,7 @@ fn merges_configs_with_overlay_priority() {
       ),
     ])),
     wasm_formatters: None,
+    profiles: None,
   };
 
   let merged = ConfigFile::merge(&base, &overlay);
@@ -190,5 +192,132 @@ fn merges_configs_with_overlay_priority() {
       ("rust".to_string(), vec!["rust_fmt".to_string()]),
     ]),
     languages
+  );
+}
+
+#[test]
+fn applies_profile_overrides() {
+  let base = ConfigFile {
+    query_paths: Some(vec![PathBuf::from("base_query")]),
+    grammar_paths: Some(vec![PathBuf::from("base_grammar")]),
+    grammar_download_dir: Some(PathBuf::from("base_downloads")),
+    grammar_build_dir: Some(PathBuf::from("base_build")),
+    grammars: None,
+    languages: Some(HashMap::from([(
+      "markdown".to_string(),
+      vec!["base_fmt".to_string()],
+    )])),
+    formatters: Some(HashMap::from([(
+      "fmt".to_string(),
+      pruner::config::FormatterSpec {
+        cmd: "base_cmd".to_string(),
+        args: Vec::new(),
+        stdin: None,
+        fail_on_stderr: None,
+      },
+    )])),
+    wasm_formatters: None,
+    profiles: None,
+  };
+
+  let profile = ProfileConfig {
+    query_paths: Some(vec![PathBuf::from("profile_query")]),
+    grammar_paths: None,
+    grammar_download_dir: Some(PathBuf::from("profile_downloads")),
+    grammar_build_dir: None,
+    grammars: None,
+    languages: Some(HashMap::from([
+      ("markdown".to_string(), vec!["profile_fmt".to_string()]),
+      ("rust".to_string(), vec!["rust_fmt".to_string()]),
+    ])),
+    formatters: None,
+    wasm_formatters: None,
+  };
+
+  let result = base.apply_profile(&profile);
+
+  assert_eq!(
+    result.query_paths.unwrap(),
+    vec![PathBuf::from("base_query"), PathBuf::from("profile_query")]
+  );
+  assert_eq!(
+    result.grammar_paths.unwrap(),
+    vec![PathBuf::from("base_grammar")]
+  );
+  assert_eq!(
+    result.grammar_download_dir.unwrap(),
+    PathBuf::from("profile_downloads")
+  );
+  assert_eq!(
+    result.grammar_build_dir.unwrap(),
+    PathBuf::from("base_build")
+  );
+
+  let languages = result.languages.unwrap();
+  assert_eq!(
+    HashMap::from([
+      ("markdown".to_string(), vec!["profile_fmt".to_string()]),
+      ("rust".to_string(), vec!["rust_fmt".to_string()]),
+    ]),
+    languages
+  );
+
+  let formatters = result.formatters.unwrap();
+  assert_eq!(
+    HashMap::from([(
+      "fmt".to_string(),
+      pruner::config::FormatterSpec {
+        cmd: "base_cmd".to_string(),
+        args: Vec::new(),
+        stdin: None,
+        fail_on_stderr: None,
+      },
+    )]),
+    formatters
+  );
+}
+
+#[test]
+fn loads_config_with_profiles_from_toml() {
+  let temp_dir = unique_temp_dir();
+  let config_path = temp_dir.join("config.toml");
+
+  let mut file = File::create(&config_path).expect("should create config file");
+  writeln!(
+    file,
+    r#"
+query_paths = ["queries"]
+grammar_download_dir = "downloads"
+
+[languages]
+markdown = ["prettier"]
+
+[profiles.ci]
+grammar_download_dir = "ci_downloads"
+
+[profiles.ci.languages]
+markdown = ["ci_prettier"]
+rust = ["rustfmt"]
+"#
+  )
+  .expect("should write config file");
+
+  let config = ConfigFile::from_file(&config_path).expect("should load config");
+
+  assert!(config.profiles.is_some());
+  let profiles = config.profiles.unwrap();
+  assert!(profiles.contains_key("ci"));
+
+  let ci_profile = profiles.get("ci").unwrap();
+  assert_eq!(
+    ci_profile.grammar_download_dir,
+    Some(temp_dir.join("ci_downloads"))
+  );
+  assert_eq!(
+    ci_profile.languages,
+    Some(HashMap::from([
+      ("markdown".to_string(), vec!["ci_prettier".to_string()]),
+      ("rust".to_string(), vec!["rustfmt".to_string()]),
+    ]))
   );
 }

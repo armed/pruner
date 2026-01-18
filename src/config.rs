@@ -63,6 +63,41 @@ pub type GrammarSpecs = HashMap<String, GrammarSpec>;
 pub type LanguageFormatSpec = Vec<String>;
 pub type LanguageFormatters = HashMap<String, LanguageFormatSpec>;
 
+/// Profile-specific configuration overrides.
+/// Has the same fields as ConfigFile (except profiles) to allow full override capability.
+#[derive(serde::Deserialize, Debug, Default, Clone)]
+pub struct ProfileConfig {
+  pub query_paths: Option<Vec<PathBuf>>,
+  pub grammar_paths: Option<Vec<PathBuf>>,
+
+  pub grammar_download_dir: Option<PathBuf>,
+  pub grammar_build_dir: Option<PathBuf>,
+
+  pub grammars: Option<GrammarSpecs>,
+  pub languages: Option<LanguageFormatters>,
+  pub formatters: Option<FormatterSpecs>,
+  pub wasm_formatters: Option<WasmComponentSpecs>,
+}
+
+impl ProfileConfig {
+  fn absolutize_paths(mut self, base_dir: &Path) -> Self {
+    self.query_paths = self
+      .query_paths
+      .map(|paths| absolutize_vec(paths, base_dir));
+    self.grammar_paths = self
+      .grammar_paths
+      .map(|paths| absolutize_vec(paths, base_dir));
+    self.grammar_download_dir = self
+      .grammar_download_dir
+      .map(|path| absolutize_path(path, base_dir));
+    self.grammar_build_dir = self
+      .grammar_build_dir
+      .map(|path| absolutize_path(path, base_dir));
+
+    self
+  }
+}
+
 /// Represents the on-disk configuration format. All fields are optional
 /// to allow partial configs that get merged together.
 #[derive(serde::Deserialize, Debug, Default, Clone)]
@@ -77,6 +112,8 @@ pub struct ConfigFile {
   pub languages: Option<LanguageFormatters>,
   pub formatters: Option<FormatterSpecs>,
   pub wasm_formatters: Option<WasmComponentSpecs>,
+
+  pub profiles: Option<HashMap<String, ProfileConfig>>,
 }
 
 /// The fully resolved configuration with all defaults applied.
@@ -161,6 +198,24 @@ impl ConfigFile {
       languages: merge_maps(&base.languages, &overlay.languages),
       formatters: merge_maps(&base.formatters, &overlay.formatters),
       wasm_formatters: merge_maps(&base.wasm_formatters, &overlay.wasm_formatters),
+      profiles: merge_maps(&base.profiles, &overlay.profiles),
+    }
+  }
+
+  pub fn apply_profile(self, profile: &ProfileConfig) -> ConfigFile {
+    ConfigFile {
+      query_paths: merge_vecs(&self.query_paths, &profile.query_paths),
+      grammar_paths: merge_vecs(&self.grammar_paths, &profile.grammar_paths),
+      grammar_download_dir: profile
+        .grammar_download_dir
+        .clone()
+        .or(self.grammar_download_dir),
+      grammar_build_dir: profile.grammar_build_dir.clone().or(self.grammar_build_dir),
+      grammars: merge_maps(&self.grammars, &profile.grammars),
+      languages: merge_maps(&self.languages, &profile.languages),
+      formatters: merge_maps(&self.formatters, &profile.formatters),
+      wasm_formatters: merge_maps(&self.wasm_formatters, &profile.wasm_formatters),
+      profiles: self.profiles,
     }
   }
 
@@ -181,6 +236,12 @@ impl ConfigFile {
     self.grammar_build_dir = self
       .grammar_build_dir
       .map(|path| absolutize_path(path, base_dir));
+    self.profiles = self.profiles.map(|profiles| {
+      profiles
+        .into_iter()
+        .map(|(name, profile)| (name, profile.absolutize_paths(base_dir)))
+        .collect()
+    });
 
     self
   }
@@ -221,9 +282,24 @@ fn load_config_file(config_path: Option<PathBuf>) -> Result<ConfigFile> {
   Ok(ConfigFile::merge(&global_config, &local_config))
 }
 
-pub fn load(config_path: Option<PathBuf>) -> Result<Config> {
+pub struct LoadOpts {
+  pub config_path: Option<PathBuf>,
+  pub profiles: Vec<String>,
+}
+
+pub fn load(opts: LoadOpts) -> Result<Config> {
   let xdg_dirs = xdg::BaseDirectories::with_prefix("pruner");
-  let config_file = load_config_file(config_path)?;
+  let mut config_file = load_config_file(opts.config_path)?;
+
+  for profile_name in &opts.profiles {
+    let profile = config_file
+      .profiles
+      .as_ref()
+      .and_then(|p| p.get(profile_name))
+      .ok_or_else(|| anyhow::anyhow!("Profile '{}' not found", profile_name))?
+      .clone();
+    config_file = config_file.apply_profile(&profile);
+  }
 
   Ok(Config {
     query_paths: config_file.query_paths.unwrap_or_default(),
