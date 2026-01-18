@@ -90,7 +90,7 @@ fn merges_configs_with_overlay_priority() {
         },
       ),
     ])),
-    wasm_formatters: None,
+    plugins: None,
     profiles: None,
   };
 
@@ -124,7 +124,7 @@ fn merges_configs_with_overlay_priority() {
         },
       ),
     ])),
-    wasm_formatters: None,
+    plugins: None,
     profiles: None,
   };
 
@@ -216,7 +216,7 @@ fn applies_profile_overrides() {
         fail_on_stderr: None,
       },
     )])),
-    wasm_formatters: None,
+    plugins: None,
     profiles: None,
   };
 
@@ -231,7 +231,7 @@ fn applies_profile_overrides() {
       ("rust".to_string(), vec!["rust_fmt".to_string()]),
     ])),
     formatters: None,
-    wasm_formatters: None,
+    plugins: None,
   };
 
   let result = base.apply_profile(&profile);

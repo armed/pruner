@@ -42,12 +42,12 @@ pub struct FormatterSpec {
 
 #[derive(serde::Deserialize, Debug, Clone)]
 #[serde(untagged)]
-pub enum WasmComponentSpec {
+pub enum PluginSpec {
   Url(Url),
   Table { url: Url },
 }
 
-impl WasmComponentSpec {
+impl PluginSpec {
   pub fn url(&self) -> &Url {
     match self {
       Self::Url(url) => url,
@@ -57,7 +57,7 @@ impl WasmComponentSpec {
 }
 
 pub type FormatterSpecs = HashMap<String, FormatterSpec>;
-pub type WasmComponentSpecs = HashMap<String, WasmComponentSpec>;
+pub type PluginSpecs = HashMap<String, PluginSpec>;
 pub type GrammarSpecs = HashMap<String, GrammarSpec>;
 
 pub type LanguageFormatSpec = Vec<String>;
@@ -76,7 +76,7 @@ pub struct ProfileConfig {
   pub grammars: Option<GrammarSpecs>,
   pub languages: Option<LanguageFormatters>,
   pub formatters: Option<FormatterSpecs>,
-  pub wasm_formatters: Option<WasmComponentSpecs>,
+  pub plugins: Option<PluginSpecs>,
 }
 
 impl ProfileConfig {
@@ -111,7 +111,7 @@ pub struct ConfigFile {
   pub grammars: Option<GrammarSpecs>,
   pub languages: Option<LanguageFormatters>,
   pub formatters: Option<FormatterSpecs>,
-  pub wasm_formatters: Option<WasmComponentSpecs>,
+  pub plugins: Option<PluginSpecs>,
 
   pub profiles: Option<HashMap<String, ProfileConfig>>,
 }
@@ -130,7 +130,7 @@ pub struct Config {
   pub grammars: GrammarSpecs,
   pub languages: LanguageFormatters,
   pub formatters: FormatterSpecs,
-  pub wasm_formatters: WasmComponentSpecs,
+  pub plugins: PluginSpecs,
 }
 
 fn absolutize_vec(paths: Vec<PathBuf>, base_dir: &Path) -> Vec<PathBuf> {
@@ -197,7 +197,7 @@ impl ConfigFile {
       grammars: merge_maps(&base.grammars, &overlay.grammars),
       languages: merge_maps(&base.languages, &overlay.languages),
       formatters: merge_maps(&base.formatters, &overlay.formatters),
-      wasm_formatters: merge_maps(&base.wasm_formatters, &overlay.wasm_formatters),
+      plugins: merge_maps(&base.plugins, &overlay.plugins),
       profiles: merge_maps(&base.profiles, &overlay.profiles),
     }
   }
@@ -214,7 +214,7 @@ impl ConfigFile {
       grammars: merge_maps(&self.grammars, &profile.grammars),
       languages: merge_maps(&self.languages, &profile.languages),
       formatters: merge_maps(&self.formatters, &profile.formatters),
-      wasm_formatters: merge_maps(&self.wasm_formatters, &profile.wasm_formatters),
+      plugins: merge_maps(&self.plugins, &profile.plugins),
       profiles: self.profiles,
     }
   }
@@ -314,6 +314,6 @@ pub fn load(opts: LoadOpts) -> Result<Config> {
     grammars: config_file.grammars.unwrap_or_default(),
     languages: config_file.languages.unwrap_or_default(),
     formatters: config_file.formatters.unwrap_or_default(),
-    wasm_formatters: config_file.wasm_formatters.unwrap_or_default(),
+    plugins: config_file.plugins.unwrap_or_default(),
   })
 }

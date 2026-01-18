@@ -30,7 +30,7 @@ fn apply_single_profile() {
       ("rust".to_string(), vec!["rustfmt".to_string()]),
     ])),
     formatters: None,
-    wasm_formatters: None,
+    plugins: None,
     profiles: None,
   };
 
@@ -45,7 +45,7 @@ fn apply_single_profile() {
       vec!["profile_prettier".to_string()],
     )])),
     formatters: None,
-    wasm_formatters: None,
+    plugins: None,
   };
 
   let result = base.apply_profile(&profile);
@@ -92,7 +92,7 @@ fn apply_multiple_profiles_in_order() {
       ("python".to_string(), vec!["base_python".to_string()]),
     ])),
     formatters: None,
-    wasm_formatters: None,
+    plugins: None,
     profiles: None,
   };
 
@@ -107,7 +107,7 @@ fn apply_multiple_profiles_in_order() {
       ("rust".to_string(), vec!["profile_a_rust".to_string()]),
     ])),
     formatters: None,
-    wasm_formatters: None,
+    plugins: None,
   };
 
   let profile_b = ProfileConfig {
@@ -121,7 +121,7 @@ fn apply_multiple_profiles_in_order() {
       vec!["profile_b_md".to_string()],
     )])),
     formatters: None,
-    wasm_formatters: None,
+    plugins: None,
   };
 
   let result = base.apply_profile(&profile_a).apply_profile(&profile_b);
@@ -174,7 +174,7 @@ fn profile_with_empty_fields_does_not_override() {
       vec!["prettier".to_string()],
     )])),
     formatters: None,
-    wasm_formatters: None,
+    plugins: None,
     profiles: None,
   };
 

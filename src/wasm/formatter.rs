@@ -58,7 +58,7 @@ impl WasmFormatter {
 
   pub fn from_config(config: &Config) -> Result<Self> {
     let mut formatter = Self::new(config.cache_dir.clone())?;
-    for (name, spec) in &config.wasm_formatters {
+    for (name, spec) in &config.plugins {
       formatter.registry.load_component(name, spec.url())?;
     }
     Ok(formatter)
