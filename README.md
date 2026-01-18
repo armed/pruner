@@ -1,43 +1,53 @@
 <div align="center">
-  <h1>pruner</h1>
-
+  <h1>Pruner</h1>
   <p>
-    A TreeSitter-powered formatter orchestrator
+    A language-agnostic, TreeSitter-powered formatter for your code.
   </p>
 
 </div>
 
----
+## What
 
-## What is this?
+Pruner is a language and editor agnostic formatter which allows encapsulating all the formatting rules of your project
+behind a shared, re-usable piece of config. It is designed in such a way as to allow leveraging all the existing,
+language-specific formatter tools you are already using while also adding additional formatting capabilities.
 
-Pruner is a formatter orchestrator that uses tree-sitter to understand source code files that containing embedded
-languages. It addresses a common formatting gap: real-world source files often embed multiple languages, while most
-formatters only operate on a single root language. Embedded regions within a source file would in most cases be treated
-as opaque strings by the host languages formatter toolchain.
+Often times real-world source code contains multiple embedded languages, while formatters are typically very
+language-specific and only operate on the root document - treating these embedded language regions as opaque strings.
+Pruner uses Tree-Sitter to parse and understand source code files containing embedded languages, and can format those
+embedded regions using their native formatting toolchain.
 
-Pruner parses the document with tree-sitter, identifies injected regions via injection queries, formats each region with
-a formatter that understands the regions language, and then re-embeds the results back into the original document.
+![extraction-diagram](./assets/pruner-diagram.webp)
 
 This effectively allows you to utilize a languages' native ecosystem for formatting across language barriers. This would
 be in contrast to, for example, trying to build a single formatter which knows how to format all languages - an
 impractical goal.
 
-![extraction-diagram](./assets/pruner-diagram.webp)
+The goal is not to re-implement individual formatters for each language, but rather to define how to compose, configure,
+and execute them.
 
-In addition to being able to call out to external formatters, Pruner also exposes a WASM component extension point. This
-allows the implementation of formatter modules in any language which can compile to wasm components. Some existing
-language formatters may even already be compilable to wasm!
+In addition to being able to call out to existing language formatters, Pruner can also be extended using WASM-compiled
+plugins. This allows encapsulating project/organization specific formatting rules, or writing brand new language
+formatters in any language that can compile to WASM.
 
-This can be particularly useful for implementing formatting adjustments not built-in to native language formatters. An
-example being `trim_newlines` - a WASM formatter which simply trims leading/trailing newlines from a document.
+## Index
+
+- **[What](#what)**
+- **[Installation](#installation)**
+- **[Configuration](#configuration)**
+- **[Language Injections](#language-injections)**
+- **[Plugins](#plugins)**
+  - **[Official Plugins](#official-plugins)**
+  - **[Community Plugins](#community-plugins)**
+  - **[Authoring Plugins](#authoring-plugins)**
+    - **[Rust Guide](./docs/writing-plugins.md)**
 
 ## Installation
 
 ### Homebrew
 
 ```bash
-brew install julienvincent/tap/pruner
+brew install pruner-formatter/tap/pruner
 ```
 
 ### Binaries
@@ -49,133 +59,99 @@ The binaries are also available on every github release. Check the releases page
 Pruner reads from stdin and writes to stdout.
 
 ```bash
-pruner format --lang clojure < input.clj > output.clj
-```
-
-```bash
-pruner format --help
-
-Format one or more files
-
-Usage: pruner format [OPTIONS] --lang <LANG> [INCLUDE_GLOB]
-
-Arguments:
-  [INCLUDE_GLOB]
-          A file pattern, in glob format, describing files on disk to be formatted.
-
-          If this is specified then pruner will recursively format all files in the cwd (or --dir if set) that match this pattern.
-
-          If this is _not_ set then pruner will expect source code to be provided via stdin and the formatted result will be outputted over stdout.
-
-Options:
-      --lang <LANG>
-          The language name of the root document. Regions containing injected languages will be dynamically discovered from queries
-
-      --log-level <LOG_LEVEL>
-
-
-  -w, --print-width <PRINT_WIDTH>
-          The desired print-width of the document after which text should wrap. This value specifies the starting point and will be dynamically adjusted for injected language regions
-
-          [default: 80]
-
-  -R, --skip-root [<SKIP_ROOT>]
-          Specifying this will skip formatting the document root. This means only regions within the document containing language injections will be formatted. If you only want to use pruner to format injected regions, then this is the option to use.
-
-          This can be especially useful in an editor context where you might want to use your LSP to format your document root, and then run pruner on the result to format injected regions.
-
-          [default: false]
-          [possible values: true, false]
-
-  -d, --dir <DIR>
-          The current working directory. Only used when formatting files
-
-  -e, --exclude <EXCLUDE>
-          Specify a file exclusion pattern as a glob. Any files matching this pattern will not be formatted. Can be specified multiple times
-
-  -c, --check [<CHECK>]
-          Setting this to true will result in no files being modified on disk. If any files are considered 'dirty' meaning, meaning they are not correctly formatted, then pruner will exit with a non-0 exit code
-
-          [default: false]
-          [possible values: true, false]
-
-  -h, --help
-          Print help (see a summary with '-h')
+cat hello.md | pruner format --lang markdown > hello.md
 ```
 
 ## Configuration
 
 Configuration is defined in `toml` and can be provided in the following ways:
 
-- A `pruner.toml` file at or in a parent directory of the current working directory
-- A user-level config file placed at `$XDG_CONFIG_HOME/pruner/config.toml`. This will be merged with project-local
+- A `pruner.toml` file at or in a parent of the current working directory
+- A user-level config file placed at `$XDG_CONFIG_HOME/pruner/config.toml`. This will be merged with project-level
   config files
-- A config file specified by the `--config` flag passed when calling `format`. If this is specified, this will be the
+- A config file specified through the `--config` flag passed when calling `format`. If specified, this will be the
   _only_ config used.
 
 Example `config.toml`:
 
 ```toml
+# Search paths for tree-sitter injection queries
+#
+# This is not required if you don't care about formatting embedded languages
 query_paths = ["queries"]
 
+# Here you can define repository URLs containing tree-sitter language grammars. These repos will be cloned down,
+# compiled, and loaded when formatting these languages.
+#
+# This is not required if you don't care about formatting embedded languages
 [grammars]
 clojure = { url = "https://github.com/sogaiu/tree-sitter-clojure" }
 markdown = { url = "https://github.com/tree-sitter-grammars/tree-sitter-markdown" }
 sql = { url = "https://github.com/derekstride/tree-sitter-sql", rev = "gh-pages" }
 
+# Named formatters which can be executed by Pruner. The tools referenced by `cmd` will need to be installed and
+# available on your $PATH
 [formatters]
 prettier = { cmd = "prettier", args = ["--prose-wrap=always", "--print-width=$textwidth",
   "--parser=$language"] }
-cljfmt = { cmd = "cljfmt", args = ["fix", "-", "--remove-multiple-non-indenting-spaces"],
-  stdin = true }
+
+pg_format = { cmd = "pg_format", args = [
+  "--spaces=2",
+  "--wrap-limit=$textwidth",
+  "-",
+] }
+
+# Wasm plugins to be loaded by pruner. This should be a URI pointing to a compiled .wasm binary implementing the
+# pruner/plugin-api.
+[plugins]
+trim_newlines = "https://github.com/pruner-formatter/plugin-trim-newlines/releases/v1.0.0/trim_newlines.wasm"
+plugin_b = {url = "file:///path/to/plugin.wasm"}
 
 [languages]
-markdown = ["prettier"]
-clojure = ["cljfmt"]
+markdown = ["prettier", "trim_newlines"]
+sql = ["pg_format", "trim_newlines", "plugin_b"]
 ```
 
-Notes:
+## Language Injections
 
-- `query_paths` and `grammar_paths` are searched for tree-sitter files.
-- `grammar_download_dir` and `grammar_build_dir` are relative to the current dir.
-- `grammars` is a map of language name to a git URL (optionally pinned with `rev`).
-- `formatters` define formatter commands; `$textwidth` and `$language` are replaced.
-- `languages` maps a language name to the formatter(s) to use (first is chosen).
+Pruner uses tree-sitter injection queries (`injections.scm`) to find regions in your document containing other embedded
+languages. These are typically shipped alongside grammars and are automatically included when loading the grammar for
+your language.
 
-## Queries
+A good example is markdown which contains embedded languages inside code blocks. The official markdown grammar includes
+injection queries which describe these embedded languages and so Pruner automatically knows how to format these sections
+(provided you have the relevant formatters for the language configured, of course).
 
-Pruner uses tree-sitter injection queries (`injections.scm`) to find embedded regions. These live either inside a
-grammar repo or alongside your custom queries.
+You are also free to (and encouraged to!) write your own language injections to support formatting embedded languages
+not defined in an official grammar.
 
-Example: inject Markdown from Clojure docstrings:
+Pruner loads language injection queries from the configured query 'search paths' by resolving
+`<search-path>/<language>/injections.scm`. As an example, to add injections queries for Rust you would need to place a
+file at `./queries/rust/injections.scm` and add `"./queries"` to the configured set of `query_paths`.
 
-```query
-((list_lit
-  ((sym_lit) @def-type
-   (sym_lit) @def-name
-   (str_lit) @docstring @injection.content)
-   (map_lit)?
+Read **[this short guide](./docs/writing-injections.md)** for a more practical example on how to write your own queries.
 
-   (_)+)
+## Plugins
 
-  (#match? @def-type "^(def|defprotocol)$")
-  (#offset! @injection.content 0 1 0 -1)
-  (#escape! @injection.content "\"")
-  (#set! injection.language "markdown"))
-```
+The pruner plugin API is defined as a [WIT interface](https://component-model.bytecodealliance.org/design/wit.html) and
+you can find the definition [here](./wit/world.wit), or you can download the WIT files from the releases page.
 
-Example: inject SQL from string literals that start with SQL keywords:
+Pruner plugins are compiled WASM component binaries and can be loaded from disk or from a remote URL. By using WASM
+Pruner allows plugin authors to write plugins in a language of their choosing so long as it can be compiled to a WASM
+component. See [here]() for a list of known supported languages.
 
-```query
-((str_lit) @injection.content
-  (#match? @injection.content "^\"(SELECT|CREATE|ALTER|UPDATE|DROP|INSERT)")
-  (#offset! @injection.content 0 1 0 -1)
-  (#escape! @injection.content "\"")
-  (#set! injection.language "sql"))
-```
+#### Official Plugins
 
-Query helpers used above:
+- **[trim-newlines](https://github.com/pruner-formatter/plugin-trim-newlines)** - Trim leading/trailing newlines from
+  any language
+- **[align-clojure-comments](https://github.com/pruner-formatter/plugin-align-clojure-comments)** - Align Clojure
+  comments to the node they correspond to.
 
-- `#offset!` adjusts the captured range (e.g., trim quotes).
-- `#escape!` tells Pruner which characters need unescaping before formatting.
-- `injection.language` sets the formatter language for the injected region.
+#### Community Plugins
+
+Feel free to open a PR contributing your own plugin(s)!
+
+#### Authoring Plugins
+
+See the **[writing plugins](./docs/writing-plugins.md)** guide for a reference on how to build a plugin in Rust, or go
+check out one of the above plugins for a reference.
