@@ -97,7 +97,9 @@ impl PluginApi for Component {
       end -= 1;
     }
 
-    Ok(source[start..end].to_vec())
+    let mut result = source[start..end].to_vec();
+    result.push(b'\n');
+    Ok(result)
   }
 }
 

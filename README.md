@@ -35,7 +35,8 @@ formatters in any language that can compile to WASM.
 - **[What](#what)**
 - **[Installation](#installation)**
 - **[Configuration](#configuration)**
-- **[Language Injections](#language-injections)**
+  - **[Profiles](#profiles)**
+- **[Formatting Embedded Languages](#formatting-embedded-languages)**
 - **[Plugins](#plugins)**
   - **[Official Plugins](#official-plugins)**
   - **[Community Plugins](#community-plugins)**
@@ -121,13 +122,35 @@ sql = ["pg_format", "trim_newlines", "plugin_b"]
 [profiles]
 ```
 
-## Language Injections
+### Profiles
+
+Profiles are snippets of config which, when applied, will overwrite the base config. These can be used to define
+variations to the formatter pipeline which are conditionally applied when calling Pruner.
+
+Profiles are applied through the `--profile` CLI flag and can be specified multiple times to apply multiple profiles.
+
+```toml
+[languages]
+markdown = ["prettier", "trim_newlines"]
+
+[profiles.trim]
+languages.markdown = ["trim_newlines"]
+```
+
+```bash
+cat README.md | pruner format --lang markdown --profile trim
+```
+
+Profiles probably aren't something that will be used extensively, but when you need to make slight adjustments in
+specific scenarios they can be a lifesaver.
+
+## Formatting Embedded Languages
 
 Pruner uses tree-sitter injection queries (`injections.scm`) to find regions in your document containing other embedded
 languages. These are typically shipped alongside grammars and are automatically included when loading the grammar for
 your language.
 
-A good example is markdown which contains embedded languages inside code blocks. The official markdown grammar includes
+A good example is Markdown which contains embedded languages inside code blocks. The official markdown grammar includes
 injection queries which describe these embedded languages and so Pruner automatically knows how to format these sections
 (provided you have the relevant formatters for the language configured, of course).
 
@@ -142,13 +165,17 @@ Read **[this short guide](./docs/writing-injections.md)** for a more practical e
 
 ## Plugins
 
-The pruner plugin API is defined as a [WIT interface](https://component-model.bytecodealliance.org/design/wit.html) and
-you can find the definition [here](./wit/world.wit), or you can download the WIT files from the releases page.
+Pruner plugins enable writing formatting behaviour in a way that is fast, versioned, and shareable. A plugin is
+essentially just a bundled function that takes source code in and returns altered source code. As Pruner evolves I do
+expect the Plugin interface and capabilities to grow beyond this.
 
-Pruner plugins are compiled WASM components and can be loaded from disk or from a remote URL. By using WASM Pruner
-allows plugin authors to write plugins in any language of their choosing so long as it can be compiled to a WASM
-component. See [here](https://component-model.bytecodealliance.org/language-support.html) for a list of known supported
-languages.
+Plugins are WASM components that implement the **[pruner/plugin-api@1.0.0](./wit/world.wit)**
+[WIT](https://component-model.bytecodealliance.org/design/wit.html) interface. You can download the latest interface
+definition from the releases page. Plugins can be loaded from disk or from a remote URL.
+
+By using WASM Pruner allows authors to write plugins in any language of their choosing so long as it can be compiled to
+a WASM component. See [here](https://component-model.bytecodealliance.org/language-support.html) for a list of known
+supported languages.
 
 ### Official Plugins
 
